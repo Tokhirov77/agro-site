@@ -4,6 +4,9 @@ import { supabase } from "./supabaseClient";
 
 // --- КОНФИГУРАЦИЯ ---
 const TELEGRAM_USER = "takhirov77";
+// Email аккаунта, с которого можно удалять комментарии на сайте.
+// Войди на сайте под этим email — появится кнопка удаления рядом с каждым комментарием.
+const ADMIN_EMAIL = "takhirov7775@gmail.com";
 // TODO: замените на реальные контакты компании
 const PHONE_NUMBER = "+998901707775";
 const WHATSAPP_NUMBER = "998901707775"; // без + и пробелов, для wa.me
@@ -22,26 +25,6 @@ const stats = [
 ];
 
 // TODO: замените на реальные отзывы клиентов (с их согласия)
-const testimonials = [
-  {
-    nameRu: "Добавьте имя фермера", nameUz: "Фермер исмини қўшинг",
-    regionRu: "Регион", regionUz: "Ҳудуд",
-    textRu: "Здесь будет реальный отзыв клиента о работе с компанией.",
-    textUz: "Бу ерда мижознинг ҳақиқий фикри бўлади.",
-  },
-  {
-    nameRu: "Добавьте имя фермера", nameUz: "Фермер исмини қўшинг",
-    regionRu: "Регион", regionUz: "Ҳудуд",
-    textRu: "Здесь будет реальный отзыв клиента о работе с компанией.",
-    textUz: "Бу ерда мижознинг ҳақиқий фикри бўлади.",
-  },
-  {
-    nameRu: "Добавьте имя фермера", nameUz: "Фермер исмини қўшинг",
-    regionRu: "Регион", regionUz: "Ҳудуд",
-    textRu: "Здесь будет реальный отзыв клиента о работе с компанией.",
-    textUz: "Бу ерда мижознинг ҳақиқий фикри бўлади.",
-  },
-];
 
 // TODO: проверьте формулировки под реальные условия работы компании
 const faqItems = [
@@ -1115,9 +1098,22 @@ export default function App() {
   const [likedByMe, setLikedByMe] = useState(false);
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState("");
+  const [commentError, setCommentError] = useState("");
   const [openFaq, setOpenFaq] = useState(null);
   const [showAgrotech, setShowAgrotech] = useState(false);
   const [agrotechPage, setAgrotechPage] = useState(0);
+
+  // --- Анонимные посетители (лайки/комментарии без входа в аккаунт) ---
+  const getAnonId = () => {
+    let id = localStorage.getItem("anon_id");
+    if (!id) {
+      id = crypto.randomUUID();
+      localStorage.setItem("anon_id", id);
+    }
+    return id;
+  };
+  const [anonId] = useState(getAnonId);
+  const [anonName, setAnonName] = useState(() => localStorage.getItem("anon_name") || "");
 
   // --- Авторизация ---
   const [session, setSession] = useState(null);
@@ -1201,46 +1197,74 @@ export default function App() {
       .eq("product_id", selectedProduct.id)
       .then(({ count }) => { if (!cancelled) setLikesCount(count || 0); });
 
-    if (session?.user) {
-      supabase.from("likes").select("id").eq("product_id", selectedProduct.id).eq("user_id", session.user.id)
-        .then(({ data }) => { if (!cancelled) setLikedByMe((data || []).length > 0); });
-    } else {
-      setLikedByMe(false);
-    }
+    const likeCol = session?.user ? "user_id" : "anon_id";
+    const likeVal = session?.user ? session.user.id : anonId;
+    supabase.from("likes").select("id").eq("product_id", selectedProduct.id).eq(likeCol, likeVal)
+      .then(({ data }) => { if (!cancelled) setLikedByMe((data || []).length > 0); });
 
     supabase.from("comments").select("*").eq("product_id", selectedProduct.id).order("created_at", { ascending: true })
       .then(({ data }) => { if (!cancelled) setComments(data || []); });
 
     return () => { cancelled = true; };
-  }, [selectedProduct, session]);
+  }, [selectedProduct, session, anonId]);
 
   const toggleLike = async (productId) => {
-    if (!session?.user) { setShowAuthForm("login"); return; }
+    const col = session?.user ? "user_id" : "anon_id";
+    const val = session?.user ? session.user.id : anonId;
     if (likedByMe) {
-      await supabase.from("likes").delete().eq("product_id", productId).eq("user_id", session.user.id);
+      await supabase.from("likes").delete().eq("product_id", productId).eq(col, val);
       setLikedByMe(false);
       setLikesCount((n) => Math.max(0, n - 1));
     } else {
-      await supabase.from("likes").insert({ product_id: productId, user_id: session.user.id });
+      await supabase.from("likes").insert({
+        product_id: productId,
+        user_id: session?.user ? session.user.id : null,
+        anon_id: session?.user ? null : anonId,
+      });
       setLikedByMe(true);
       setLikesCount((n) => n + 1);
     }
   };
 
   const addComment = async () => {
-    if (!session?.user) { setShowAuthForm("login"); return; }
     if (!commentText.trim() || !selectedProduct) return;
+    setCommentError("");
+    const nameToUse = session?.user
+      ? (profile?.display_name || session.user.email.split("@")[0])
+      : (anonName.trim() || (lang === "ru" ? "Гость" : "Меҳмон"));
+    if (!session?.user && anonName.trim()) {
+      localStorage.setItem("anon_name", anonName.trim());
+    }
     const { data, error } = await supabase.from("comments").insert({
       product_id: selectedProduct.id,
-      user_id: session.user.id,
-      display_name: profile?.display_name || session.user.email.split("@")[0],
+      user_id: session?.user ? session.user.id : null,
+      anon_id: session?.user ? null : anonId,
+      display_name: nameToUse,
       text: commentText.trim(),
     }).select().single();
     if (!error && data) {
       setComments((c) => [...c, data]);
       setCommentText("");
+    } else if (error) {
+      console.error(error);
+      setCommentError(error.message || (lang === "ru" ? "Не удалось отправить комментарий." : "Изоҳни юбориб бўлмади."));
     }
   };
+
+  const isAdmin = session?.user?.email === ADMIN_EMAIL;
+
+  const deleteComment = async (commentId) => {
+    const ok = window.confirm(lang === "ru" ? "Удалить этот комментарий?" : "Ушбу изоҳни ўчирасизми?");
+    if (!ok) return;
+    const { error } = await supabase.from("comments").delete().eq("id", commentId);
+    if (!error) {
+      setComments((c) => c.filter((x) => x.id !== commentId));
+    } else {
+      console.error(error);
+      alert(error.message);
+    }
+  };
+
 
   useEffect(() => {
     const onScroll = () => setShowScrollTop(window.scrollY > 600);
@@ -1296,7 +1320,6 @@ export default function App() {
     submitRequest: lang === "ru" ? "Отправить в Telegram" : "Telegram орқали юбориш",
     submitWhatsapp: lang === "ru" ? "Отправить в WhatsApp" : "WhatsApp орқали юбориш",
     statsTitle: lang === "ru" ? "Компания в цифрах" : "Рақамларда компания",
-    testimonialsTitle: lang === "ru" ? "Отзывы наших клиентов" : "Мижозларимиз фикри",
     agrotechTitle: lang === "ru" ? "Агротехника по культурам" : "Экинлар бўйича агротехника",
     agrotechSubtitle: lang === "ru" ? "Подробные рекомендации по выращиванию с учётом климата Узбекистана — отдельно для теплицы и открытого грунта." : "Ўзбекистон иқлимини ҳисобга олган ҳолда етиштириш бўйича батафсил тавсиялар — иссиқхона ва очиқ дала учун алоҳида.",
     agrotechCta: lang === "ru" ? "Открыть книгу агротехники" : "Агротехника китобини очиш",
@@ -1790,7 +1813,18 @@ export default function App() {
                   <div key={c.id} className="bg-white p-4 rounded-xl border border-[#E4E7E2]">
                     <div className="flex items-center justify-between mb-1">
                       <p className="font-semibold text-[#1C2420] text-sm">{c.display_name}</p>
-                      <p className="text-xs text-[#8A9089]">{new Date(c.created_at).toLocaleDateString(lang === "ru" ? "ru-RU" : "uz-UZ")}</p>
+                      <div className="flex items-center gap-3">
+                        <p className="text-xs text-[#8A9089]">{new Date(c.created_at).toLocaleDateString(lang === "ru" ? "ru-RU" : "uz-UZ")}</p>
+                        {isAdmin && (
+                          <button
+                            onClick={() => deleteComment(c.id)}
+                            className="text-xs text-red-500 hover:text-red-700 font-semibold transition-colors"
+                            title={lang === "ru" ? "Удалить комментарий" : "Изоҳни ўчириш"}
+                          >
+                            ✕
+                          </button>
+                        )}
+                      </div>
                     </div>
                     <p className="text-[#4B564F] text-sm leading-relaxed">{c.text}</p>
                   </div>
@@ -1798,32 +1832,36 @@ export default function App() {
               )}
             </div>
 
-            {session?.user ? (
-              <div className="bg-white p-4 rounded-xl border border-[#E4E7E2] space-y-3">
+            <div className="bg-white p-4 rounded-xl border border-[#E4E7E2] space-y-3">
+              {session?.user ? (
                 <p className="text-xs text-[#8A9089]">{t.commentingAs} <span className="font-semibold text-[#173C31]">{profile?.display_name || session.user.email}</span></p>
-                <textarea
-                  value={commentText}
-                  onChange={(e) => setCommentText(e.target.value)}
-                  placeholder={t.yourComment}
-                  rows={3}
-                  className="w-full px-4 py-2.5 rounded-lg border border-[#E4E7E2] focus:outline-none focus:border-[#173C31] transition-colors text-sm resize-none"
+              ) : (
+                <input
+                  type="text"
+                  value={anonName}
+                  onChange={(e) => setAnonName(e.target.value)}
+                  placeholder={lang === "ru" ? "Ваше имя (необязательно)" : "Исмингиз (шарт эмас)"}
+                  className="w-full px-4 py-2.5 rounded-lg border border-[#E4E7E2] focus:outline-none focus:border-[#173C31] transition-colors text-sm"
                 />
-                <button
-                  onClick={addComment}
-                  disabled={!commentText.trim()}
-                  className="bg-[#173C31] text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#1F4C39] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
-                >
-                  {t.addComment}
-                </button>
-              </div>
-            ) : (
+              )}
+              <textarea
+                value={commentText}
+                onChange={(e) => setCommentText(e.target.value)}
+                placeholder={t.yourComment}
+                rows={3}
+                className="w-full px-4 py-2.5 rounded-lg border border-[#E4E7E2] focus:outline-none focus:border-[#173C31] transition-colors text-sm resize-none"
+              />
               <button
-                onClick={() => setShowAuthForm("login")}
-                className="w-full bg-[#F6F7F5] border border-dashed border-[#CFDFD8] text-[#173C31] font-semibold py-4 rounded-xl hover:bg-[#EAF1EE] transition-colors text-sm"
+                onClick={addComment}
+                disabled={!commentText.trim()}
+                className="bg-[#173C31] text-white px-5 py-2.5 rounded-lg font-semibold text-sm hover:bg-[#1F4C39] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
               >
-                {t.loginToComment}
+                {t.addComment}
               </button>
-            )}
+              {commentError && (
+                <p className="text-red-600 text-xs mt-1">{commentError}</p>
+              )}
+            </div>
           </div>
         </div>
       <ContactBar />
@@ -2233,19 +2271,6 @@ export default function App() {
               </div>
             </div>
           </div>
-        </div>
-      </section>
-
-      <section className="px-4 py-20 max-w-7xl mx-auto">
-        <h2 className="font-display text-3xl md:text-4xl font-semibold text-center mb-12 text-[#1C2420] tracking-tight">{t.testimonialsTitle}</h2>
-        <div className="grid md:grid-cols-3 gap-6">
-          {testimonials.map((tm, i) => (
-            <div key={i} className="bg-white p-6 rounded-xl border border-[#E4E7E2] shadow-sm">
-              <p className="text-[#4B564F] mb-6 leading-relaxed">{lang === "ru" ? tm.textRu : tm.textUz}</p>
-              <p className="font-semibold text-[#1C2420]">{lang === "ru" ? tm.nameRu : tm.nameUz}</p>
-              <p className="text-xs text-[#8A9089] uppercase tracking-wide">{lang === "ru" ? tm.regionRu : tm.regionUz}</p>
-            </div>
-          ))}
         </div>
       </section>
 

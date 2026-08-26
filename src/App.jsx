@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { FaYoutube, FaTelegram, FaInstagram, FaWhatsapp, FaPhone, FaUser, FaSignOutAlt } from "react-icons/fa";
+import { FaYoutube, FaTelegram, FaInstagram, FaWhatsapp, FaPhone, FaUser, FaSignOutAlt, FaBars, FaTimes } from "react-icons/fa";
 import { supabase } from "./supabaseClient";
 
 // --- КОНФИГУРАЦИЯ ---
@@ -1149,6 +1149,7 @@ export default function App() {
   const [showUsefulInfo, setShowUsefulInfo] = useState(false);
   const [usefulInfoPage, setUsefulInfoPage] = useState(0);
   const [usefulInfoImgExt, setUsefulInfoImgExt] = useState(0); // 0 = пробуем .jpg, 1 = пробуем .png, 2 = не найдено
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
 
   // --- Анонимные посетители (лайки/комментарии без входа в аккаунт) ---
@@ -1284,6 +1285,18 @@ export default function App() {
   useEffect(() => {
     setSearchQuery("");
   }, [selectedCrop]);
+
+  // Прокручиваем страницу наверх при каждом переходе на новый экран
+  // (товар, культура, агротехника, полезная информация, вход, заявка),
+  // чтобы страница всегда открывалась сверху, а не с середины.
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, [selectedProduct, selectedCrop, showAgrotech, showUsefulInfo, showAuthForm, showLeadForm]);
+
+  // Закрываем мобильное меню при переходе на другой экран
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [selectedProduct, selectedCrop, showAgrotech, showUsefulInfo]);
 
   const t = {
     back: lang === "ru" ? "← Назад" : "← Орқага",
@@ -1767,6 +1780,7 @@ export default function App() {
       <div className="font-sans min-h-screen p-4 md:p-10 bg-[#F6F7F5] text-[#1C2420] relative">
         <LangSwitcher />
         <div className="max-w-6xl mx-auto">
+          <button onClick={() => { setSelectedProduct(null); setIsExpanded(false); }} className="text-[#173C31] font-semibold mb-4 hover:underline">{t.back}</button>
           <Breadcrumbs items={[
             { label: t.home, onClick: () => { setSelectedProduct(null); setSelectedCrop(null); setIsExpanded(false); } },
             { label: selectedCrop ? selectedCrop[lang] : selectedProduct.crop, onClick: () => { setSelectedProduct(null); setIsExpanded(false); } },
@@ -1964,6 +1978,7 @@ export default function App() {
       <div className="font-sans min-h-screen p-4 md:p-10 bg-[#F6F7F5] relative">
         <LangSwitcher />
         <div className="max-w-7xl mx-auto">
+          <button onClick={() => setSelectedCrop(null)} className="text-[#173C31] font-semibold mb-4 hover:underline">{t.back}</button>
           <Breadcrumbs items={[
             { label: t.home, onClick: () => setSelectedCrop(null) },
             { label: selectedCrop[lang] },
@@ -2093,7 +2108,7 @@ export default function App() {
               {lang === "ru" ? "ЎЗБЕК" : "РУС"}
             </button>
             {session?.user ? (
-              <div className="hidden sm:flex items-center gap-2">
+              <div className="hidden md:flex items-center gap-2">
                 <span className="flex items-center gap-1.5 text-xs md:text-sm font-semibold text-[#173C31]">
                   <FaUser size={12} /> {profile?.display_name || session.user.email.split("@")[0]}
                 </span>
@@ -2102,15 +2117,52 @@ export default function App() {
                 </button>
               </div>
             ) : (
-              <button onClick={() => setShowAuthForm("login")} className="hidden sm:flex items-center gap-1.5 text-xs md:text-sm font-semibold text-[#173C31] border border-[#CFDFD8] px-3 py-1.5 rounded-full hover:bg-[#EAF1EE] transition-colors">
+              <button onClick={() => setShowAuthForm("login")} className="hidden md:flex items-center gap-1.5 text-xs md:text-sm font-semibold text-[#173C31] border border-[#CFDFD8] px-3 py-1.5 rounded-full hover:bg-[#EAF1EE] transition-colors">
                 <FaUser size={12} /> {t.login}
               </button>
             )}
-            <button onClick={() => setShowLeadForm(true)} className="hidden sm:block bg-[#173C31] text-white text-xs md:text-sm font-semibold px-4 py-2 rounded-full hover:bg-[#1F4C39] transition-colors">
+            <button onClick={() => setShowLeadForm(true)} className="hidden md:block bg-[#173C31] text-white text-xs md:text-sm font-semibold px-4 py-2 rounded-full hover:bg-[#1F4C39] transition-colors">
               {t.leaveRequest}
+            </button>
+            <button
+              onClick={() => setMobileMenuOpen((v) => !v)}
+              className="md:hidden flex items-center justify-center w-9 h-9 rounded-lg border border-[#E4E7E2] text-[#173C31]"
+              aria-label="Menu"
+            >
+              {mobileMenuOpen ? <FaTimes size={16} /> : <FaBars size={16} />}
             </button>
           </div>
         </div>
+
+        {mobileMenuOpen && (
+          <div className="md:hidden border-t border-[#E4E7E2] bg-white px-4 py-4 space-y-1">
+            <a href="#catalog" onClick={() => setMobileMenuOpen(false)} className="block px-2 py-2.5 rounded-lg font-semibold text-[#4B564F] hover:bg-[#F6F7F5] hover:text-[#173C31] transition-colors">{t.navCatalog}</a>
+            <a href="#about" onClick={() => setMobileMenuOpen(false)} className="block px-2 py-2.5 rounded-lg font-semibold text-[#4B564F] hover:bg-[#F6F7F5] hover:text-[#173C31] transition-colors">{t.navAbout}</a>
+            <button onClick={() => { setShowAgrotech(true); setAgrotechPage(0); setMobileMenuOpen(false); }} className="block w-full text-left px-2 py-2.5 rounded-lg font-semibold text-[#4B564F] hover:bg-[#F6F7F5] hover:text-[#173C31] transition-colors">{t.navAgrotech}</button>
+            <button onClick={() => { setShowUsefulInfo(true); setUsefulInfoPage(0); setMobileMenuOpen(false); }} className="block w-full text-left px-2 py-2.5 rounded-lg font-semibold text-[#4B564F] hover:bg-[#F6F7F5] hover:text-[#173C31] transition-colors">{t.navUsefulInfo}</button>
+            <a href="#contact" onClick={() => setMobileMenuOpen(false)} className="block px-2 py-2.5 rounded-lg font-semibold text-[#4B564F] hover:bg-[#F6F7F5] hover:text-[#173C31] transition-colors">{t.navContact}</a>
+
+            <div className="pt-3 mt-2 border-t border-[#E4E7E2] flex flex-col gap-2">
+              {session?.user ? (
+                <div className="flex items-center justify-between px-2 py-2">
+                  <span className="flex items-center gap-1.5 text-sm font-semibold text-[#173C31]">
+                    <FaUser size={12} /> {profile?.display_name || session.user.email.split("@")[0]}
+                  </span>
+                  <button onClick={() => { signOut(); setMobileMenuOpen(false); }} className="text-[#8A9089] hover:text-[#173C31] transition-colors" aria-label="Logout">
+                    <FaSignOutAlt size={16} />
+                  </button>
+                </div>
+              ) : (
+                <button onClick={() => { setShowAuthForm("login"); setMobileMenuOpen(false); }} className="flex items-center justify-center gap-1.5 text-sm font-semibold text-[#173C31] border border-[#CFDFD8] px-3 py-2.5 rounded-full hover:bg-[#EAF1EE] transition-colors">
+                  <FaUser size={12} /> {t.login}
+                </button>
+              )}
+              <button onClick={() => { setShowLeadForm(true); setMobileMenuOpen(false); }} className="bg-[#173C31] text-white text-sm font-semibold px-4 py-2.5 rounded-full hover:bg-[#1F4C39] transition-colors">
+                {t.leaveRequest}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
       <header className="relative py-24 md:py-32 flex items-center justify-center text-center px-6">
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[300px] md:w-[600px] h-[300px] bg-[#2A5F48]/10 blur-[120px] -z-10 rounded-full"></div>
@@ -2293,53 +2345,6 @@ export default function App() {
         })}
       </section>
 
-      <section id="about" className="px-4 py-24 max-w-7xl mx-auto">
-        <div className="bg-[#0B1C17] text-white p-8 md:p-20 rounded-[3.5rem] relative overflow-hidden shadow-2xl">
-          <div className="absolute -top-10 -right-10 w-64 h-64 bg-[#1F4C39]/10 rounded-full blur-[100px]"></div>
-          <h2 className="font-display text-4xl md:text-6xl font-semibold mb-12 uppercase tracking-tighter">{t.aboutTitle}</h2>
-          <div className="grid lg:grid-cols-2 gap-12 md:gap-20 relative z-10">
-            <div className="space-y-8 text-lg md:text-xl font-medium leading-relaxed text-[#8A9089]">
-              <p><span className="text-white font-semibold">ООО Veles Agro & ООО Agrius</span> — {t.aboutDesc1}</p>
-              <p>{t.aboutDesc2}</p>
-              <div className="pt-8 border-t border-white/10">
-  <p className="text-[#C69214] font-semibold mb-2 text-xs uppercase tracking-widest">
-    {t.locationLabel}
-  </p>
-  <a 
-    href={t.mapLink} 
-    target="_blank" 
-    rel="noopener noreferrer"
-    className="text-white font-bold text-lg md:text-xl hover:text-[#DEB047] transition-colors duration-300 block mb-4"
-  >
-    {t.address}
-  </a>
-  <div className="rounded-2xl overflow-hidden border border-white/10 h-64">
-    <iframe
-      title="map"
-      src={MAP_LAT && MAP_LON
-        ? `https://yandex.ru/map-widget/v1/?ll=${MAP_LON}%2C${MAP_LAT}&z=16&pt=${MAP_LON},${MAP_LAT},pm2rdm`
-        : `https://yandex.ru/map-widget/v1/?text=${encodeURIComponent(MAP_QUERY)}`}
-      className="w-full h-full"
-      loading="lazy"
-      referrerPolicy="no-referrer-when-downgrade"
-    ></iframe>
-  </div>
-</div>
-            </div>
-            <div className="grid grid-cols-1 gap-4 md:gap-6">
-              <div className="bg-white/5 backdrop-blur-lg p-8 rounded-[2.5rem] border border-white/10">
-                <p className="font-display text-[#C69214] font-semibold text-2xl mb-3 tracking-tighter">Veles Agro</p>
-                <p className="text-[#8A9089] text-sm leading-relaxed">{t.velesInfo}</p>
-              </div>
-              <div className="bg-white/5 backdrop-blur-lg p-8 rounded-[2.5rem] border border-white/10">
-                <p className="font-display text-[#C69214] font-semibold text-2xl mb-3 tracking-tighter">Agrius</p>
-                <p className="text-[#8A9089] text-sm leading-relaxed">{t.agriusInfo}</p>
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
       <section className="px-4 py-20 max-w-7xl mx-auto">
         <div
           onClick={() => { setShowAgrotech(true); setAgrotechPage(0); }}
@@ -2389,6 +2394,53 @@ export default function App() {
               )}
             </div>
           ))}
+        </div>
+      </section>
+
+      <section id="about" className="px-4 py-24 max-w-7xl mx-auto">
+        <div className="bg-[#0B1C17] text-white p-8 md:p-20 rounded-[3.5rem] relative overflow-hidden shadow-2xl">
+          <div className="absolute -top-10 -right-10 w-64 h-64 bg-[#1F4C39]/10 rounded-full blur-[100px]"></div>
+          <h2 className="font-display text-4xl md:text-6xl font-semibold mb-12 uppercase tracking-tighter">{t.aboutTitle}</h2>
+          <div className="grid lg:grid-cols-2 gap-12 md:gap-20 relative z-10">
+            <div className="space-y-8 text-lg md:text-xl font-medium leading-relaxed text-[#8A9089]">
+              <p><span className="text-white font-semibold">ООО Veles Agro & ООО Agrius</span> — {t.aboutDesc1}</p>
+              <p>{t.aboutDesc2}</p>
+              <div className="pt-8 border-t border-white/10">
+  <p className="text-[#C69214] font-semibold mb-2 text-xs uppercase tracking-widest">
+    {t.locationLabel}
+  </p>
+  <a 
+    href={t.mapLink} 
+    target="_blank" 
+    rel="noopener noreferrer"
+    className="text-white font-bold text-lg md:text-xl hover:text-[#DEB047] transition-colors duration-300 block mb-4"
+  >
+    {t.address}
+  </a>
+  <div className="rounded-2xl overflow-hidden border border-white/10 h-64">
+    <iframe
+      title="map"
+      src={MAP_LAT && MAP_LON
+        ? `https://yandex.ru/map-widget/v1/?ll=${MAP_LON}%2C${MAP_LAT}&z=16&pt=${MAP_LON},${MAP_LAT},pm2rdm`
+        : `https://yandex.ru/map-widget/v1/?text=${encodeURIComponent(MAP_QUERY)}`}
+      className="w-full h-full"
+      loading="lazy"
+      referrerPolicy="no-referrer-when-downgrade"
+    ></iframe>
+  </div>
+</div>
+            </div>
+            <div className="grid grid-cols-1 gap-4 md:gap-6">
+              <div className="bg-white/5 backdrop-blur-lg p-8 rounded-[2.5rem] border border-white/10">
+                <p className="font-display text-[#C69214] font-semibold text-2xl mb-3 tracking-tighter">Veles Agro</p>
+                <p className="text-[#8A9089] text-sm leading-relaxed">{t.velesInfo}</p>
+              </div>
+              <div className="bg-white/5 backdrop-blur-lg p-8 rounded-[2.5rem] border border-white/10">
+                <p className="font-display text-[#C69214] font-semibold text-2xl mb-3 tracking-tighter">Agrius</p>
+                <p className="text-[#8A9089] text-sm leading-relaxed">{t.agriusInfo}</p>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 

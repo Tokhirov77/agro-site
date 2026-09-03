@@ -16,6 +16,34 @@ const MAP_QUERY = "Ташкент, улица Хамал, 29/1";
 const MAP_LAT = 41.280979; // например: 41.280979
 const MAP_LON = 69.301624; // например: 69.301624
 
+// Флаги в виде SVG (а не эмодзи), чтобы одинаково отображались на всех
+// устройствах — эмодзи-флаги не показываются как картинки на Windows.
+const FlagUZ = ({ className }) => (
+  <svg viewBox="0 0 32 22" className={className} xmlns="http://www.w3.org/2000/svg">
+    <rect width="32" height="22" rx="3" fill="#fff" />
+    <rect width="32" height="6.6" fill="#0099B5" />
+    <rect y="7.15" width="32" height="1.35" fill="#CE1126" />
+    <rect y="8.5" width="32" height="5" fill="#fff" />
+    <rect y="13.5" width="32" height="1.35" fill="#CE1126" />
+    <rect y="14.85" width="32" height="7.15" fill="#1EB53A" />
+    <circle cx="6.2" cy="4" r="2.3" fill="#fff" />
+    <circle cx="7" cy="4" r="1.9" fill="#0099B5" />
+    {[0,1,2,3,4,5,6,7,8,9,10,11].map((i) => {
+      const angle = (i / 12) * 2 * Math.PI;
+      const cx = 12 + Math.cos(angle) * 3.4;
+      const cy = 4 + Math.sin(angle) * 3.4;
+      return <circle key={i} cx={cx} cy={cy} r="0.55" fill="#fff" />;
+    })}
+  </svg>
+);
+const FlagRU = ({ className }) => (
+  <svg viewBox="0 0 32 22" className={className} xmlns="http://www.w3.org/2000/svg">
+    <rect width="32" height="22" rx="3" fill="#fff" />
+    <rect y="7.33" width="32" height="7.34" fill="#0039A6" />
+    <rect y="14.67" width="32" height="7.33" fill="#D52B1E" />
+  </svg>
+);
+
 // TODO: замените заглушки на реальные данные компании
 const stats = [
   { value: "30+", labelRu: "лет на рынке", labelUz: "йил бозорда" },
@@ -1468,12 +1496,20 @@ export default function App() {
 
   const LangSwitcher = () => (
     <div className="fixed top-4 right-4 md:top-6 md:right-6 z-50 no-print">
-      <button 
-        onClick={() => setLang(lang === "ru" ? "uz" : "ru")} 
-        className="font-sans bg-[#0B1C17]/80 backdrop-blur-md text-white border border-white/15 px-4 py-2 rounded-xl font-semibold shadow-lg hover:bg-[#1F4C39] transition-colors duration-300 text-sm md:text-base"
-      >
-        {lang === "ru" ? "ЎЗБЕК ТИЛИ" : "РУССКИЙ"}
-      </button>
+      <div className="font-sans flex items-center bg-[#0B1C17]/80 backdrop-blur-md border border-white/15 rounded-xl shadow-lg overflow-hidden">
+        <button
+          onClick={() => setLang("uz")}
+          className={`flex items-center gap-1.5 px-3 py-2 text-sm md:text-base font-semibold transition-colors ${lang === "uz" ? "bg-[#1F4C39] text-white" : "text-white/60 hover:text-white"}`}
+        >
+          <FlagUZ className="w-5 h-3.5 rounded-[2px]" /> UZ
+        </button>
+        <button
+          onClick={() => setLang("ru")}
+          className={`flex items-center gap-1.5 px-3 py-2 text-sm md:text-base font-semibold transition-colors ${lang === "ru" ? "bg-[#1F4C39] text-white" : "text-white/60 hover:text-white"}`}
+        >
+          <FlagRU className="w-5 h-3.5 rounded-[2px]" /> RU
+        </button>
+      </div>
     </div>
   );
 
@@ -2107,9 +2143,20 @@ export default function App() {
               />
               <span className="hidden font-display font-semibold text-lg md:text-xl tracking-tight text-[#173C31]">Veles Agro</span>
             </div>
-            <button onClick={() => setLang(lang === "ru" ? "uz" : "ru")} className="text-xs md:text-sm font-semibold text-[#173C31] border border-[#CFDFD8] px-3 py-1.5 rounded-full hover:bg-[#EAF1EE] transition-colors">
-              {lang === "ru" ? "ЎЗБЕК" : "РУС"}
-            </button>
+            <div className="flex items-center border border-[#CFDFD8] rounded-full overflow-hidden">
+              <button
+                onClick={() => setLang("uz")}
+                className={`flex items-center gap-1 px-2.5 py-1.5 text-xs md:text-sm font-semibold transition-colors ${lang === "uz" ? "bg-[#173C31] text-white" : "text-[#173C31] hover:bg-[#EAF1EE]"}`}
+              >
+                <FlagUZ className="w-4 h-3 rounded-[2px]" /> UZ
+              </button>
+              <button
+                onClick={() => setLang("ru")}
+                className={`flex items-center gap-1 px-2.5 py-1.5 text-xs md:text-sm font-semibold transition-colors ${lang === "ru" ? "bg-[#173C31] text-white" : "text-[#173C31] hover:bg-[#EAF1EE]"}`}
+              >
+                <FlagRU className="w-4 h-3 rounded-[2px]" /> RU
+              </button>
+            </div>
             {session?.user ? (
               <div className="hidden md:flex items-center gap-2">
                 <span className="flex items-center gap-1.5 text-xs md:text-sm font-semibold text-[#173C31]">

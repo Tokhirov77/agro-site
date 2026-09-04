@@ -1310,45 +1310,49 @@ export default function App() {
   const [statsData, setStatsData] = useState(null);
   const [statsLoading, setStatsLoading] = useState(false);
   const [statsError, setStatsError] = useState("");
+  const [statsExpanded, setStatsExpanded] = useState(false);
 
   const loadStats = async () => {
     setStatsLoading(true);
     setStatsError("");
     try {
       const now = new Date();
-      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
       const startOfWeekDate = new Date(now);
       startOfWeekDate.setDate(now.getDate() - ((now.getDay() + 6) % 7)); // понедельник
       startOfWeekDate.setHours(0, 0, 0, 0);
-      const startOfWeek = startOfWeekDate.toISOString();
-      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
-      const startOfYear = new Date(now.getFullYear(), 0, 1).toISOString();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+      const startOfYear = new Date(now.getFullYear(), 0, 1);
 
       const periods = [
         { key: "today", from: startOfDay },
-        { key: "week", from: startOfWeek },
+        { key: "week", from: startOfWeekDate },
         { key: "month", from: startOfMonth },
         { key: "year", from: startOfYear },
         { key: "all", from: null },
       ];
 
-      const countFor = async (from, googleOnly) => {
-        let q = supabase.from("page_visits").select("*", { count: "exact", head: true });
-        if (from) q = q.gte("created_at", from);
-        q = googleOnly === true ? q.not("user_id", "is", null) : googleOnly === false ? q.is("user_id", null) : q;
-        const { count, error } = await q;
-        if (error) throw error;
-        return count || 0;
-      };
+      // Забираем все визиты одним запросом и дальше считаем и визиты,
+      // и уникальных людей (по anon_id / user_id) прямо в браузере —
+      // так не нужно делать по 3 запроса на каждый период.
+      const { data: rows, error } = await supabase
+        .from("page_visits")
+        .select("anon_id, user_id, created_at")
+        .order("created_at", { ascending: true });
+      if (error) throw error;
 
       const result = {};
       for (const p of periods) {
-        const [total, anon, google] = await Promise.all([
-          countFor(p.from, null),
-          countFor(p.from, false),
-          countFor(p.from, true),
-        ]);
-        result[p.key] = { total, anon, google };
+        const inPeriod = p.from ? rows.filter((r) => new Date(r.created_at) >= p.from) : rows;
+        const anonRows = inPeriod.filter((r) => !r.user_id);
+        const googleRows = inPeriod.filter((r) => r.user_id);
+        result[p.key] = {
+          total: inPeriod.length,
+          anon: anonRows.length,
+          google: googleRows.length,
+          uniqueAnon: new Set(anonRows.map((r) => r.anon_id)).size,
+          uniqueGoogle: new Set(googleRows.map((r) => r.user_id)).size,
+        };
       }
       setStatsData(result);
     } catch (e) {
@@ -1361,6 +1365,7 @@ export default function App() {
 
   useEffect(() => {
     if (showStats && !statsData && !statsLoading) loadStats();
+    if (!showStats) setStatsExpanded(false);
   }, [showStats]);
 
   const deleteComment = async (commentId) => {
@@ -1610,8 +1615,8 @@ export default function App() {
             <div className="p-6 md:p-10">
               <p className="text-sm text-[#8A9089] mb-8">
                 {lang === "ru"
-                  ? "«Без входа» — просто зашли на сайт, без какой-либо регистрации. «Через Google» — зашли и вошли в аккаунт."
-                  : "«Кирмасдан» — рўйхатдан ўтмасдан оддий кирганлар. «Google орқали» — аккаунтга кириб кирганлар."}
+                  ? "«Визиты» — сколько раз всего заходили (одна и та же вкладка не считается дважды). «Уникальных людей» — сколько разных посетителей/аккаунтов за период."
+                  : "«Ташрифлар» — жами неча марта кирилган (бир хил вкладка икки марта ҳисобланмайди). «Ноёб одамлар» — шу давр ичида қанча турли киши/аккаунт кирган."}
               </p>
 
               {statsLoading && (
@@ -1622,21 +1627,36 @@ export default function App() {
               )}
 
               {statsData && !statsLoading && (
-                <div className="space-y-3">
-                  <div className="grid grid-cols-4 gap-2 text-xs font-semibold text-[#8A9089] uppercase tracking-wide px-4">
-                    <span></span>
-                    <span className="text-center">{lang === "ru" ? "Всего" : "Жами"}</span>
-                    <span className="text-center">{lang === "ru" ? "Без входа" : "Кирмасдан"}</span>
-                    <span className="text-center">{lang === "ru" ? "Через Google" : "Google орқали"}</span>
-                  </div>
-                  {["today", "week", "month", "year", "all"].map((key) => (
-                    <div key={key} className="grid grid-cols-4 gap-2 items-center bg-[#F6F7F5] rounded-xl px-4 py-4">
-                      <span className="font-semibold text-[#1C2420]">{periodLabels[key]}</span>
-                      <span className="text-center font-display text-xl font-semibold text-[#173C31]">{statsData[key].total}</span>
-                      <span className="text-center text-[#4B564F]">{statsData[key].anon}</span>
-                      <span className="text-center text-[#4B564F]">{statsData[key].google}</span>
+                <div className="space-y-6">
+                  {(statsExpanded ? ["today", "week", "month", "year", "all"] : ["today"]).map((key) => (
+                    <div key={key} className="bg-[#F6F7F5] rounded-2xl p-5">
+                      <p className="font-display font-semibold text-lg text-[#1C2420] mb-3">{periodLabels[key]}</p>
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div>
+                          <p className="text-xs font-semibold text-[#8A9089] uppercase tracking-wide mb-1">{lang === "ru" ? "Всего визитов" : "Жами ташриф"}</p>
+                          <p className="font-display text-2xl font-semibold text-[#173C31]">{statsData[key].total}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-[#8A9089] uppercase tracking-wide mb-1">{lang === "ru" ? "Без входа" : "Кирмасдан"}</p>
+                          <p className="text-lg font-semibold text-[#4B564F]">{statsData[key].anon}</p>
+                          <p className="text-[11px] text-[#8A9089]">{lang === "ru" ? `уник.: ${statsData[key].uniqueAnon}` : `ноёб: ${statsData[key].uniqueAnon}`}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs font-semibold text-[#8A9089] uppercase tracking-wide mb-1">{lang === "ru" ? "Через Google" : "Google орқали"}</p>
+                          <p className="text-lg font-semibold text-[#4B564F]">{statsData[key].google}</p>
+                          <p className="text-[11px] text-[#8A9089]">{lang === "ru" ? `уник.: ${statsData[key].uniqueGoogle}` : `ноёб: ${statsData[key].uniqueGoogle}`}</p>
+                        </div>
+                      </div>
                     </div>
                   ))}
+
+                  <button
+                    onClick={() => setStatsExpanded((v) => !v)}
+                    className="w-full flex items-center justify-center gap-1 text-[#8A9089] hover:text-[#173C31] transition-colors py-2 text-2xl font-semibold tracking-widest"
+                    aria-label={lang === "ru" ? "Показать остальные периоды" : "Қолган даврларни кўрсатиш"}
+                  >
+                    {statsExpanded ? "︿" : "•••"}
+                  </button>
                 </div>
               )}
             </div>

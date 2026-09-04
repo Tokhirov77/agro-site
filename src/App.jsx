@@ -1197,14 +1197,28 @@ export default function App() {
   const [profile, setProfile] = useState(null);
   const [showAuthForm, setShowAuthForm] = useState(null); // "login" | null
   const [authError, setAuthError] = useState("");
+  const [sessionChecked, setSessionChecked] = useState(false);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
+    supabase.auth.getSession().then(({ data }) => { setSession(data.session); setSessionChecked(true); });
     const { data: listener } = supabase.auth.onAuthStateChange((_event, newSession) => {
       setSession(newSession);
     });
     return () => listener.subscription.unsubscribe();
   }, []);
+
+  // Считаем визит на сайт ровно один раз за вкладку/сессию браузера —
+  // без какой-либо регистрации. Как только становится известно, вошёл ли
+  // человек через Google или нет, записываем визит в нужную категорию.
+  useEffect(() => {
+    if (!sessionChecked) return;
+    if (sessionStorage.getItem("visit_logged")) return;
+    sessionStorage.setItem("visit_logged", "1");
+    supabase.from("page_visits").insert({
+      anon_id: session?.user ? null : anonId,
+      user_id: session?.user ? session.user.id : null,
+    }).then(({ error }) => { if (error) console.error(error); });
+  }, [sessionChecked]);
 
   useEffect(() => {
     if (!session?.user) { setProfile(null); return; }
@@ -1291,6 +1305,64 @@ export default function App() {
 
   const isAdmin = session?.user?.email === ADMIN_EMAIL;
 
+  // --- Статистика посещений (видна только администратору сайта) ---
+  const [showStats, setShowStats] = useState(false);
+  const [statsData, setStatsData] = useState(null);
+  const [statsLoading, setStatsLoading] = useState(false);
+  const [statsError, setStatsError] = useState("");
+
+  const loadStats = async () => {
+    setStatsLoading(true);
+    setStatsError("");
+    try {
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
+      const startOfWeekDate = new Date(now);
+      startOfWeekDate.setDate(now.getDate() - ((now.getDay() + 6) % 7)); // понедельник
+      startOfWeekDate.setHours(0, 0, 0, 0);
+      const startOfWeek = startOfWeekDate.toISOString();
+      const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
+      const startOfYear = new Date(now.getFullYear(), 0, 1).toISOString();
+
+      const periods = [
+        { key: "today", from: startOfDay },
+        { key: "week", from: startOfWeek },
+        { key: "month", from: startOfMonth },
+        { key: "year", from: startOfYear },
+        { key: "all", from: null },
+      ];
+
+      const countFor = async (from, googleOnly) => {
+        let q = supabase.from("page_visits").select("*", { count: "exact", head: true });
+        if (from) q = q.gte("created_at", from);
+        q = googleOnly === true ? q.not("user_id", "is", null) : googleOnly === false ? q.is("user_id", null) : q;
+        const { count, error } = await q;
+        if (error) throw error;
+        return count || 0;
+      };
+
+      const result = {};
+      for (const p of periods) {
+        const [total, anon, google] = await Promise.all([
+          countFor(p.from, null),
+          countFor(p.from, false),
+          countFor(p.from, true),
+        ]);
+        result[p.key] = { total, anon, google };
+      }
+      setStatsData(result);
+    } catch (e) {
+      console.error(e);
+      setStatsError(e.message || (lang === "ru" ? "Не удалось загрузить статистику." : "Статистикани юклаб бўлмади."));
+    } finally {
+      setStatsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (showStats && !statsData && !statsLoading) loadStats();
+  }, [showStats]);
+
   const deleteComment = async (commentId) => {
     const ok = window.confirm(lang === "ru" ? "Удалить этот комментарий?" : "Ушбу изоҳни ўчирасизми?");
     if (!ok) return;
@@ -1319,12 +1391,12 @@ export default function App() {
   // чтобы страница всегда открывалась сверху, а не с середины.
   useEffect(() => {
     window.scrollTo(0, 0);
-  }, [selectedProduct, selectedCrop, showAgrotech, showUsefulInfo, showAuthForm, showLeadForm]);
+  }, [selectedProduct, selectedCrop, showAgrotech, showUsefulInfo, showAuthForm, showLeadForm, showStats]);
 
   // Закрываем мобильное меню при переходе на другой экран
   useEffect(() => {
     setMobileMenuOpen(false);
-  }, [selectedProduct, selectedCrop, showAgrotech, showUsefulInfo]);
+  }, [selectedProduct, selectedCrop, showAgrotech, showUsefulInfo, showStats]);
 
   const t = {
     back: lang === "ru" ? "← Назад" : "← Орқага",
@@ -1512,6 +1584,67 @@ export default function App() {
       </div>
     </div>
   );
+
+  if (showStats) {
+    const periodLabels = {
+      today: lang === "ru" ? "Сегодня" : "Бугун",
+      week: lang === "ru" ? "Эта неделя" : "Шу ҳафта",
+      month: lang === "ru" ? "Этот месяц" : "Шу ой",
+      year: lang === "ru" ? "Этот год" : "Шу йил",
+      all: lang === "ru" ? "За всё время" : "Барча вақт",
+    };
+    return (
+      <div className="font-sans min-h-screen p-4 md:p-10 bg-[#F6F7F5] text-[#1C2420] relative">
+        <LangSwitcher />
+        <div className="max-w-3xl mx-auto">
+          <button onClick={() => setShowStats(false)} className="text-[#173C31] font-semibold mb-6 hover:underline">{t.back}</button>
+
+          <div className="bg-white rounded-[2rem] shadow-xl border border-[#E4E7E2] overflow-hidden">
+            <div className="flex items-center justify-between px-6 py-4 border-b border-[#E4E7E2] bg-[#0B1C17] text-white">
+              <p className="font-display font-semibold">{lang === "ru" ? "Статистика посещений" : "Ташрифлар статистикаси"}</p>
+              <button onClick={loadStats} className="flex items-center gap-2 text-xs font-semibold bg-white/10 hover:bg-white/20 px-3 py-1.5 rounded-full transition-colors">
+                {lang === "ru" ? "Обновить" : "Янгилаш"}
+              </button>
+            </div>
+
+            <div className="p-6 md:p-10">
+              <p className="text-sm text-[#8A9089] mb-8">
+                {lang === "ru"
+                  ? "«Без входа» — просто зашли на сайт, без какой-либо регистрации. «Через Google» — зашли и вошли в аккаунт."
+                  : "«Кирмасдан» — рўйхатдан ўтмасдан оддий кирганлар. «Google орқали» — аккаунтга кириб кирганлар."}
+              </p>
+
+              {statsLoading && (
+                <p className="text-[#8A9089] font-semibold">{lang === "ru" ? "Загрузка..." : "Юкланмоқда..."}</p>
+              )}
+              {statsError && (
+                <p className="text-red-600 text-sm mb-4">{statsError}</p>
+              )}
+
+              {statsData && !statsLoading && (
+                <div className="space-y-3">
+                  <div className="grid grid-cols-4 gap-2 text-xs font-semibold text-[#8A9089] uppercase tracking-wide px-4">
+                    <span></span>
+                    <span className="text-center">{lang === "ru" ? "Всего" : "Жами"}</span>
+                    <span className="text-center">{lang === "ru" ? "Без входа" : "Кирмасдан"}</span>
+                    <span className="text-center">{lang === "ru" ? "Через Google" : "Google орқали"}</span>
+                  </div>
+                  {["today", "week", "month", "year", "all"].map((key) => (
+                    <div key={key} className="grid grid-cols-4 gap-2 items-center bg-[#F6F7F5] rounded-xl px-4 py-4">
+                      <span className="font-semibold text-[#1C2420]">{periodLabels[key]}</span>
+                      <span className="text-center font-display text-xl font-semibold text-[#173C31]">{statsData[key].total}</span>
+                      <span className="text-center text-[#4B564F]">{statsData[key].anon}</span>
+                      <span className="text-center text-[#4B564F]">{statsData[key].google}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   if (showAgrotech) {
     const totalPages = agrotech.length;
@@ -2174,6 +2307,11 @@ export default function App() {
             <button onClick={() => setShowLeadForm(true)} className="hidden md:block bg-[#173C31] text-white text-xs md:text-sm font-semibold px-4 py-2 rounded-full hover:bg-[#1F4C39] transition-colors">
               {t.leaveRequest}
             </button>
+            {isAdmin && (
+              <button onClick={() => setShowStats(true)} className="hidden md:flex items-center gap-1 text-xs md:text-sm font-semibold text-[#173C31] border border-[#CFDFD8] px-3 py-1.5 rounded-full hover:bg-[#EAF1EE] transition-colors" title={lang === "ru" ? "Статистика" : "Статистика"}>
+                📊
+              </button>
+            )}
             <button
               onClick={() => setMobileMenuOpen((v) => !v)}
               className="md:hidden flex items-center justify-center w-9 h-9 rounded-lg border border-[#E4E7E2] text-[#173C31]"
@@ -2210,6 +2348,11 @@ export default function App() {
               <button onClick={() => { setShowLeadForm(true); setMobileMenuOpen(false); }} className="bg-[#173C31] text-white text-sm font-semibold px-4 py-2.5 rounded-full hover:bg-[#1F4C39] transition-colors">
                 {t.leaveRequest}
               </button>
+              {isAdmin && (
+                <button onClick={() => { setShowStats(true); setMobileMenuOpen(false); }} className="flex items-center justify-center gap-1.5 text-sm font-semibold text-[#173C31] border border-[#CFDFD8] px-3 py-2.5 rounded-full hover:bg-[#EAF1EE] transition-colors">
+                  📊 {lang === "ru" ? "Статистика" : "Статистика"}
+                </button>
+              )}
             </div>
           </div>
         )}

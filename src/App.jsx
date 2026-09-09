@@ -3,6 +3,7 @@ import { FaYoutube, FaTelegram, FaInstagram, FaWhatsapp, FaPhone, FaUser, FaSign
 import { supabase } from "./supabaseClient";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Seo from "./Seo.jsx";
+import PrivacyPage from "./PrivacyPage.jsx";
 
 // --- КОНФИГУРАЦИЯ ---
 const TELEGRAM_USER = "takhirov77";
@@ -1288,7 +1289,8 @@ const showUsefulInfo = location.pathname === "/poleznaya-informatsiya";
   const [likedByMe, setLikedByMe] = useState(false);
   const [comments, setComments] = useState([]);
   const [commentText, setCommentText] = useState("");
-  const [commentError, setCommentError] = useState("");
+const [commentError, setCommentError] = useState("");
+const [honeypot, setHoneypot] = useState(""); // ловушка для ботов — обычный человек это поле не увидит и не заполнит
   const [openFaq, setOpenFaq] = useState(null);
   const [agrotechPage, setAgrotechPage] = useState(0);
   const [usefulInfoPage, setUsefulInfoPage] = useState(0);
@@ -1395,7 +1397,17 @@ const showUsefulInfo = location.pathname === "/poleznaya-informatsiya";
   };
 
   const addComment = async () => {
+    if (honeypot.trim()) return;
     if (!commentText.trim() || !selectedProduct) return;
+    if (commentText.trim().length > 1000) {
+      setCommentError(lang === "ru" ? "Комментарий слишком длинный." : "Изоҳ жуда узун.");
+      return;
+    }
+    const linkCount = (commentText.match(/https?:\/\//gi) || []).length;
+    if (linkCount > 1) {
+      setCommentError(lang === "ru" ? "Слишком много ссылок в комментарии." : "Изоҳда жуда кўп ҳавола бор.");
+      return;
+    }
     setCommentError("");
     const nameToUse = session?.user
       ? (profile?.full_name || session.user.email.split("@")[0])
@@ -1722,6 +1734,9 @@ const showUsefulInfo = location.pathname === "/poleznaya-informatsiya";
       </div>
     </div>
   );
+  if (location.pathname === "/privacy") {
+    return <PrivacyPage lang={lang} setLang={setLang} />;
+  }
 
   if (showStats) {
     const periodLabels = {
@@ -2125,16 +2140,20 @@ const showUsefulInfo = location.pathname === "/poleznaya-informatsiya";
             </select>
 
             <label className="flex items-start gap-2 text-xs text-[#4B564F]">
-              <input
-                type="checkbox"
-                checked={leadConsent}
-                onChange={(e) => setLeadConsent(e.target.checked)}
-                className="mt-0.5"
-              />
-              {lang === "ru"
-                ? "Я согласен(на) на обработку персональных данных для связи по моей заявке."
-                : "Мен аризам бўйича боғланиш учун шахсий маълумотларимни қайта ишлашга розиман."}
-            </label>
+  <input
+    type="checkbox"
+    checked={leadConsent}
+    onChange={(e) => setLeadConsent(e.target.checked)}
+    className="mt-0.5"
+  />
+  <span>
+    {lang === "ru" ? "Я согласен(на) на " : "Мен "}
+    <Link to="/privacy" target="_blank" className="underline text-[#173C31]">
+      {lang === "ru" ? "обработку персональных данных" : "шахсий маълумотларни қайта ишлашга"}
+    </Link>
+    {lang === "ru" ? " для связи по моей заявке." : " розиман (аризам бўйича боғланиш учун)."}
+  </span>
+</label>
 
             <button
               onClick={submitLeadTelegram}
@@ -2313,7 +2332,16 @@ const showUsefulInfo = location.pathname === "/poleznaya-informatsiya";
             </div>
 
             <div className="bg-white p-4 rounded-xl border border-[#E4E7E2] space-y-3">
-              {session?.user ? (
+  <input
+    type="text"
+    value={honeypot}
+    onChange={(e) => setHoneypot(e.target.value)}
+    tabIndex={-1}
+    autoComplete="off"
+    style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px", opacity: 0 }}
+    aria-hidden="true"
+  />
+  {session?.user ? (
                 <p className="text-xs text-[#8A9089]">{t.commentingAs} <span className="font-semibold text-[#173C31]">{profile?.full_name || session.user.email}</span></p>
               ) : (
                 <input
@@ -2897,6 +2925,9 @@ const showUsefulInfo = location.pathname === "/poleznaya-informatsiya";
           {t.leaveRequest}
         </button>
         <p className="text-[#8A9089] font-semibold uppercase text-[10px] tracking-[0.4em]">© 2026 Uzbekistan • High Tech Agriculture</p>
+<Link to="/privacy" className="text-[#8A9089] text-[10px] uppercase tracking-widest hover:text-[#173C31] transition-colors mt-2 inline-block">
+  {lang === "ru" ? "Политика конфиденциальности" : "Махфийлик сиёсати"}
+</Link>
       </footer>
       <ContactBar />
       <ScrollTopButton />

@@ -108,7 +108,6 @@ const productGroups = {
   // Сладкий перец
   36: "pepper_cubic_red", 67: "pepper_cubic_red", 37: "pepper_cubic_red", 38: "pepper_cubic_red",
   39: "pepper_cubic_medium",
-  40: "pepper_yellow",
   // Цветная капуста (по срокам созревания)
   41: "cauli_late",
   42: "cauli_mid", 43: "cauli_mid", 44: "cauli_mid", 45: "cauli_mid",
@@ -138,7 +137,7 @@ const trendGroups = [
   { titleRu: "Длинноплодные огурцы (Бейт Альфа)", titleUz: "Узун бодринглар (Бейт Алфа)", ids: [28, 29] },
   { titleRu: "Огурцы открытого грунта", titleUz: "Очиқ дала бодринглари", ids: [31, 32, 30] },
   { titleRu: "Корнишонные огурцы", titleUz: "Корнишон бодринглар", ids: [33, 35] },
-  { titleRu: "Сладкий перец", titleUz: "Ширин қалампир", ids: [67, 40] },
+  { titleRu: "Сладкий перец", titleUz: "Ширин қалампир", ids: [67] },
   { titleRu: "Цветная капуста", titleUz: "Гулкарам", ids: [43, 41] },
   { titleRu: "Капуста", titleUz: "Карам", ids: [47, 49, 50] },
   { titleRu: "Арбуз", titleUz: "Тарвуз", ids: [57] },
@@ -1219,6 +1218,35 @@ const products = [
   }
 },
 ];
+// --- Самопроверка данных (работает только в режиме разработки) ---
+if (import.meta.env?.DEV) {
+  const productIds = new Set(products.map((p) => p.id));
+
+  // Проверяем productGroups — все ключи должны существовать в products
+  Object.keys(productGroups).forEach((id) => {
+    if (!productIds.has(Number(id))) {
+      console.warn(`⚠️ productGroups: товар с id=${id} не найден в products`);
+    }
+  });
+
+  // Проверяем trendGroups — все ids внутри должны существовать в products
+  trendGroups.forEach((group) => {
+    group.ids.forEach((id) => {
+      if (!productIds.has(id)) {
+        console.warn(`⚠️ trendGroups "${group.titleRu}": товар с id=${id} не найден в products`);
+      }
+    });
+  });
+
+  // Проверяем дубликаты id внутри products
+  const seen = new Set();
+  products.forEach((p) => {
+    if (seen.has(p.id)) {
+      console.warn(`⚠️ products: дублирующийся id=${p.id} (${p.name})`);
+    }
+    seen.add(p.id);
+  });
+}
 
 const SITE_URL = "https://www.agrius.uz";
 
@@ -1702,18 +1730,32 @@ const [honeypot, setHoneypot] = useState(""); // ловушка для бото�
   );
 
   const Breadcrumbs = ({ items }) => (
-    <div className="text-xs font-semibold text-[#8A9089] mb-6 flex flex-wrap items-center gap-1">
-      {items.map((item, i) => (
-        <span key={i} className="flex items-center gap-1">
-          {i > 0 && <span className="opacity-50">/</span>}
-          {item.onClick ? (
-            <button onClick={item.onClick} className="hover:text-[#173C31] transition-colors">{item.label}</button>
-          ) : (
-            <span className="text-[#173C31]">{item.label}</span>
-          )}
-        </span>
-      ))}
-    </div>
+    <>
+      <script type="application/ld+json">
+        {JSON.stringify({
+          "@context": "https://schema.org",
+          "@type": "BreadcrumbList",
+          itemListElement: items.map((item, i) => ({
+            "@type": "ListItem",
+            position: i + 1,
+            name: item.label,
+            ...(item.url ? { item: item.url } : {}),
+          })),
+        })}
+      </script>
+      <div className="text-xs font-semibold text-[#8A9089] mb-6 flex flex-wrap items-center gap-1">
+        {items.map((item, i) => (
+          <span key={i} className="flex items-center gap-1">
+            {i > 0 && <span className="opacity-50">/</span>}
+            {item.onClick ? (
+              <button onClick={item.onClick} className="hover:text-[#173C31] transition-colors">{item.label}</button>
+            ) : (
+              <span className="text-[#173C31]">{item.label}</span>
+            )}
+          </span>
+        ))}
+      </div>
+    </>
   );
 
   const LangSwitcher = () => (
@@ -1818,7 +1860,13 @@ const [honeypot, setHoneypot] = useState(""); // ловушка для бото�
     const totalPages = agrotech.length;
     const current = agrotechPage > 0 ? agrotech[agrotechPage - 1] : null;
     return (
+      
       <div className="font-sans min-h-screen bg-[#F6F7F5] text-[#1C2420] relative">
+        <Seo
+          title={lang === "ru" ? "Агротехника по культурам | Agrius & Veles Agro" : "Экинлар бўйича агротехника | Agrius & Veles Agro"}
+          description={t.agrotechSubtitle}
+          canonical={`${SITE_URL}/agrotehnika`}
+        />
         <style>{`
           @media print {
             .no-print { display: none !important; }
@@ -1928,6 +1976,11 @@ const [honeypot, setHoneypot] = useState(""); // ловушка для бото�
     const currentImage = current && usefulInfoImgExt < 2 ? `${currentBase}.${imgExts[usefulInfoImgExt]}` : null;
     return (
       <div className="font-sans min-h-screen bg-[#F6F7F5] text-[#1C2420] relative">
+        <Seo
+          title={lang === "ru" ? "Полезная информация | Agrius & Veles Agro" : "Фойдали маълумотлар | Agrius & Veles Agro"}
+          description={t.usefulInfoSubtitle}
+          canonical={`${SITE_URL}/poleznaya-informatsiya`}
+        />
         <LangSwitcher />
         <div className="max-w-3xl mx-auto px-4 py-10">
         <button onClick={() => { navigate(-1); setUsefulInfoPage(0); }} className="text-[#173C31] font-semibold mb-6 hover:underline">{t.back}</button>
@@ -2202,10 +2255,14 @@ const [honeypot, setHoneypot] = useState(""); // ловушка для бото�
         <div className="max-w-6xl mx-auto">
           <button onClick={() => { navigate(-1); setIsExpanded(false); }} className="text-[#173C31] font-semibold mb-4 hover:underline">{t.back}</button>
           <Breadcrumbs items={[
-  { label: t.home, onClick: () => { goHome(); setIsExpanded(false); } },
-  { label: selectedCrop ? selectedCrop[lang] : selectedProduct.crop, onClick: () => { navigate(-1); setIsExpanded(false); } },
-  { label: selectedProduct.name },
-          ]} />
+  { label: t.home, onClick: () => { goHome(); setIsExpanded(false); }, url: `${SITE_URL}/` },
+  {
+    label: selectedCrop ? selectedCrop[lang] : selectedProduct.crop,
+    onClick: () => { navigate(-1); setIsExpanded(false); },
+    url: selectedCrop ? `${SITE_URL}/catalog/${getCropSlug(selectedCrop.id)}` : undefined,
+  },
+  { label: selectedProduct.name, url: `${SITE_URL}/catalog/${getCropSlug(selectedProduct.crop)}/${getProductSlug(selectedProduct)}` },
+]} />
           
           <div className="grid lg:grid-cols-2 gap-10 items-start">
             <div className="w-full">
@@ -2392,7 +2449,7 @@ const [honeypot, setHoneypot] = useState(""); // ловушка для бото�
             return false;
           }
       }
-      if (selectedCrop.id === "Бахчевые культуры ") {
+      if (selectedCrop.id === "Бахчевые культуры") {
         if (p.category !== tomatoCategory) return false;
       }
         return true;
@@ -2414,9 +2471,9 @@ const [honeypot, setHoneypot] = useState(""); // ловушка для бото�
         <div className="max-w-7xl mx-auto">
           <button onClick={goHome} className="text-[#173C31] font-semibold mb-4 hover:underline">{t.back}</button>
           <Breadcrumbs items={[
-            { label: t.home, onClick: () => setSelectedCrop(null) },
-            { label: selectedCrop[lang] },
-          ]} />
+  { label: t.home, onClick: goHome, url: `${SITE_URL}/` },
+  { label: selectedCrop[lang], url: `${SITE_URL}/catalog/${getCropSlug(selectedCrop.id)}` },
+]} />
           <div className="flex flex-col items-center mb-12 text-center">
             <h1 className="font-display text-5xl md:text-7xl font-semibold text-[#1C2420] mb-6 tracking-tighter">{selectedCrop[lang]}</h1>
             
@@ -2445,7 +2502,7 @@ const [honeypot, setHoneypot] = useState(""); // ловушка для бото�
                 )}
               </div>
             )}
-{selectedCrop.id === "Бахчевые культуры " && (
+{selectedCrop.id === "Бахчевые культуры" && (
   <div className="flex flex-col items-center gap-6 mt-4">
     <div className="inline-flex bg-[#E4E7E2]/50 p-1.5 rounded-2xl border border-[#E4E7E2]/30">
       <button 
@@ -2864,6 +2921,20 @@ const [honeypot, setHoneypot] = useState(""); // ловушка для бото�
             </div>
           ))}
         </div>
+        <script type="application/ld+json">
+  {JSON.stringify({
+    "@context": "https://schema.org",
+    "@type": "FAQPage",
+    mainEntity: faqItems.map((item) => ({
+      "@type": "Question",
+      name: lang === "ru" ? item.qRu : item.qUz,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: lang === "ru" ? item.aRu : item.aUz,
+      },
+    })),
+  })}
+</script>
       </section>
 
       <section id="about" className="px-4 py-24 max-w-7xl mx-auto">

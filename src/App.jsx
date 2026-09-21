@@ -2568,9 +2568,8 @@ const [honeypot, setHoneypot] = useState(""); // ловушка для бото�
   return (
     <div className="font-sans min-h-screen bg-[#FFFFFF] relative">
       <Seo
-  title="Agrius & Veles Agro — семена гибридов овощей в Узбекистане"
-  description="Официальный дистрибьютор семян HM.Clause, Nongwoo Bio, United Genetics, Farmseeds и Agromar. Гибриды томата, огурца, перца, капусты, кукурузы для фермеров Узбекистана."
-  canonical={SITE_URL + "/"}
+title="Agrius & Veles Agro — официальный сайт | Семена в Узбекистане"
+description="Agrius и Veles Agro — поставщики семян сельскохозяйственных культур в Узбекистане. Гибриды томата, огурца, перца, капусты и кукурузы для фермеров."canonical={SITE_URL + "/"}
   jsonLd={{
     "@context": "https://schema.org",
     "@type": "Organization",

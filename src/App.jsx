@@ -4,6 +4,7 @@ import { supabase } from "./supabaseClient";
 import { Link, useNavigate, useLocation } from "react-router-dom";
 import Seo from "./Seo.jsx";
 import PrivacyPage from "./PrivacyPage.jsx";
+import StructuredData from "./StructuredData";
 
 // --- КОНФИГУРАЦИЯ ---
 const TELEGRAM_USER = "takhirov77";
@@ -2567,19 +2568,21 @@ const [honeypot, setHoneypot] = useState(""); // ловушка для бото�
 
   return (
     <div className="font-sans min-h-screen bg-[#FFFFFF] relative">
-      <Seo
-title="Agrius & Veles Agro — официальный сайт | Семена в Узбекистане"
-description="Agrius и Veles Agro — поставщики семян сельскохозяйственных культур в Узбекистане. Гибриды томата, огурца, перца, капусты и кукурузы для фермеров."canonical={SITE_URL + "/"}
-  jsonLd={{
-    "@context": "https://schema.org",
-    "@type": "Organization",
-    name: "Agrius & Veles Agro",
-    url: SITE_URL,
-    logo: `${SITE_URL}/images/logo/agrius.jpg`,
-    telephone: PHONE_NUMBER,
-    address: { "@type": "PostalAddress", addressCountry: "UZ", addressLocality: "Ташкент" },
-  }}
-/>
+            <Seo
+        title="Agrius & Veles Agro — официальный сайт | Семена в Узбекистане"
+        description="Agrius и Veles Agro — поставщики семян сельскохозяйственных культур в Узбекистане. Гибриды томата, огурца, перца, капусты и кукурузы для фермеров."
+        canonical={SITE_URL + "/"}
+        jsonLd={{
+          "@context": "https://schema.org",
+          "@type": "Organization",
+          name: "Agrius & Veles Agro",
+          url: SITE_URL,
+          logo: `${SITE_URL}/images/logo/agrius.jpg`,
+          telephone: PHONE_NUMBER,
+          address: { "@type": "PostalAddress", addressCountry: "UZ", addressLocality: "Ташкент" },
+        }}
+      />
+      <StructuredData />
       <div className="sticky top-0 z-50 bg-white/90 backdrop-blur-md border-b border-[#E4E7E2]">
         <div className="max-w-7xl mx-auto px-4 md:px-6 h-16 md:h-20 flex items-center justify-between">
           <div className="flex items-center gap-2 min-w-0">

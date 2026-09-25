@@ -66,7 +66,9 @@ export default async function middleware(request) {
   }
 }
 
-// Матчер: применяем middleware ко всем путям, кроме служебных
+// Матчер: применяем middleware ко всем путям, кроме служебных.
+// runtime: "nodejs" — актуальная рекомендация Vercel (edge runtime устарел).
 export const config = {
   matcher: "/((?!api).*)",
+  runtime: "nodejs",
 };
